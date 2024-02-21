@@ -1,13 +1,8 @@
 ###### YOUR PROPERTIES HERE ######
-guid: 'CHANGEME'
-vcenter_password: 'CHANGEME'
-ocp4_pull_secret: 'CHANGEME'
+api_ip: 192.168.188.201
+apps_ip: 192.168.188.202
+dns_t1: 10.2.192.12
+guid: 'rscp4'
+ocp_version: 4.14.13
 ##################################
 
-## Defaults
-ocp_version: 4.11.9
-student_name: lab-user
-
-vcenter_domain: vc.opentlc.com
-vcenter_hostname: portal.vc.opentlc.com
-vcenter_username: "sandbox-{{ guid }}@vc.opentlc.com"
