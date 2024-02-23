@@ -1,0 +1,57 @@
+additionalTrustBundlePolicy: Proxyonly
+apiVersion: v1
+baseDomain: dynamic.opentlc.com
+compute:
+- architecture: amd64
+  hyperthreading: Enabled
+  name: worker
+  platform: {}
+  replicas: 3
+controlPlane:
+  architecture: amd64
+  hyperthreading: Enabled
+  name: master
+  platform: {}
+  replicas: 3
+metadata:
+  creationTimestamp: null
+  name: nb6vz
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.0.0.0/16
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  vsphere:
+    apiVIPs:
+    - 192.168.48.201
+    failureDomains:
+    - name: generated-failure-domain
+      region: generated-region
+      server: vcenter.sddc-44-197-86-61.vmwarevmc.com
+      topology:
+        computeCluster: /SDDC-Datacenter/host/Cluster-1
+        datacenter: SDDC-Datacenter
+        datastore: /SDDC-Datacenter/datastore/WorkloadDatastore
+        networks:
+        - segment-sandbox-nb6vz
+        resourcePool: /SDDC-Datacenter/host/Cluster-1//Resources
+        folder: /SDDC-Datacenter/vm/Workloads/sandbox-nb6vz
+      zone: generated-zone
+    ingressVIPs:
+    - 192.168.48.202
+    vcenters:
+    - datacenters:
+      - SDDC-Datacenter
+      password: tImkwsra4HP2
+      port: 443
+      server: vcenter.sddc-44-197-86-61.vmwarevmc.com
+      user: sandbox-nb6vz@vc.opentlc.com
+publish: External
+pullSecret: '{...}'
+sshKey: |
+  ssh-ed25519 ...

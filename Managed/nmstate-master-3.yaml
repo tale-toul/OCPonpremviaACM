@@ -1,0 +1,33 @@
+apiVersion: agent-install.openshift.io/v1beta1
+kind: NMStateConfig
+metadata:
+  name: master-3
+  namespace: clue
+  labels:
+    infraenvs.agent-install.openshift.io: clue
+spec:
+  config:
+    interfaces:
+      - name: eth0
+        type: ethernet
+        state: up
+        mac-address: 00:50:56:a2:1e:17
+        ipv4:
+          enabled: true
+          address:
+            - ip: 192.168.188.102
+              prefix-length: 24
+          dhcp: false
+    dns-resolver:
+      config:
+        server:
+          - 192.168.188.10
+    routes:
+      config:
+        - destination: 0.0.0.0/0
+          next-hop-address: 192.168.188.1
+          next-hop-interface: eth0
+          table-id: 254
+  interfaces:
+    - name: "eth0"
+      macAddress: 00:50:56:a2:1e:17
