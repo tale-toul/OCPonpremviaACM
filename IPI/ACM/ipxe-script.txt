@@ -1,0 +1,4 @@
+#!ipxe
+initrd --name initrd https://assisted-image-service-multicluster-engine.apps.sjmzk.dynamic.opentlc.com/images/a33153be-2b7f-47a0-99c1-02c4862a4478/pxe-initrd?api_key=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpbmZyYV9lbnZfaWQiOiJhMzMxNTNiZS0yYjdmLTQ3YTAtOTljMS0wMmM0ODYyYTQ0NzgifQ.7rxWAIOpYAFmoG7YzaIPinYkNzExFwMcuSWA0edxTJTHk8XRz9VryafeLU4rgcFT3ApFGrNTkBj8sDydkP1Lig&arch=x86_64&version=4.15
+kernel https://assisted-image-service-multicluster-engine.apps.sjmzk.dynamic.opentlc.com/boot-artifacts/kernel?arch=x86_64&version=4.15 initrd=initrd coreos.live.rootfs_url=https://assisted-image-service-multicluster-engine.apps.sjmzk.dynamic.opentlc.com/boot-artifacts/rootfs?arch=x86_64&version=4.15 random.trust_cpu=on rd.luks.options=discard ignition.firstboot ignition.platform.id=metal console=tty1 console=ttyS1,115200n8 coreos.inst.persistent-kargs="console=tty1 console=ttyS1,115200n8"
+boot

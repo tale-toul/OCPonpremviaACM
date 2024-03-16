@@ -7,7 +7,8 @@ storageConfig:
 mirror:
   platform:
     architectures:
-    - amd64
+      - "multi"
+      - "amd64"
     channels:
     - name: stable-4.15
       minVersion: 4.15.0
@@ -23,6 +24,9 @@ mirror:
           maxVersion: '2.9.2'
       - name: multicluster-engine
         channels: 
+        - name: stable-2.5
+          minVersion: '2.5.0-103'
+          maxVersion: '2.5.0-103'
         - name: stable-2.4
-          minVersion: '2.4.2'
-          maxVersion: '2.4.3'
+          minVersion: '2.4.3'
+          maxVersion: '2.4.4'

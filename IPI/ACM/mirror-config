@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mirror-config
+  namespace: multicluster-engine
+  labels:
+    app: assisted-service
+data:
+  ca-bundle.crt: |
+   -----BEGIN CERTIFICATE-----
+   MIID/jCCAuagAwIBAgIUcTPgO9RSv9q5Ys76wxsvZjS3PdwwDQYJKoZIhvcNAQEL
+   BQAwgYExCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJWQTERMA8GA1UEBwwITmV3IFlv
+   cmsxDTALBgNVBAoMBFF1YXkxETAPBgNVBAsMCERpdmlzaW9uMTAwLgYDVQQDDCdi
+   YXN0aW9uLTk5NXB2Ljk5NXB2LmR5bmFtaWMub3BlbnRsYy5jb20wHhcNMjQwMzA4
+   MTAxMDM4WhcNMjYxMjI3MTAxMDM4WjCBgTELMAkGA1UEBhMCVVMxCzAJBgNVBAgM
+   AlZBMREwDwYDVQQHDAhOZXcgWW9yazENMAsGA1UECgwEUXVheTERMA8GA1UECwwI
+   RGl2aXNpb24xMDAuBgNVBAMMJ2Jhc3Rpb24tOTk1cHYuOTk1cHYuZHluYW1pYy5v
+   cGVudGxjLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAN9p+0Cj
+   9Bjt5sE4W+9LbgKIFNlaTRWipLR2WEUw6LN4Q3jO1cWLvB/Z4WFSch91xyGDSV4L
+   Vb8mLLTyYmjl/FvEanXOyldT7KSlZNckMnS+0wPjKSlj/L5cN8gOrHhO1qI2u6Xs
+   BeW6iE0CLDTQfU76wDx265YqTSWsPkNbrAe3LKsUr7wRZBdsTFw6TVkTlz/c+b2/
+   VBCV2D+zRf4DbJ7FZgcGLu7qhnWgXuPydwIDYHP6W61SJoxhQgV4ItuHYpJBnM4z
+   /HDg5ZFeo8Yl7fgGKEsBtFNrKqvuOfEM8BN0XTilCqaV6WeGa3xC8fWnF+U1O91K
+   PHfkWQODuYSZC+MCAwEAAaNsMGowCwYDVR0PBAQDAgLkMBMGA1UdJQQMMAoGCCsG
+   AQUFBwMBMDIGA1UdEQQrMCmCJ2Jhc3Rpb24tOTk1cHYuOTk1cHYuZHluYW1pYy5v
+   cGVudGxjLmNvbTASBgNVHRMBAf8ECDAGAQH/AgEBMA0GCSqGSIb3DQEBCwUAA4IB
+   AQBNwdQHVm/IZ4YCzlpv7wlWHIqFBCipur1YYQ/tn4uIDAWWtazAzw/TCGwii23R
+   KlxWqREpbV5Jj5/Xb/9d+lgdNFKFIZQJEhSws9Jac0cphqYba/5InaW3ibDzVn6e
+   Akn6B8O5LGXpl+MAhoEY1+m2kHF6oUgASLUCt+gyG1xA2WZqL5cYk3c7er8p79y9
+   H7I+cN7kYa8Tn1iavCVKPg6lNc9cPPEKiqcptr6he2s/OPn2MYTO02xTPHuK8z1n
+   S8MSdgzCPGiN4EC67r2DWJiVlSl2EC5awvsKvwiQnNKraN3ArO/Wxxrv4jS+WUdN
+   2VAODDFugUjzzmTV+UTfM5mu
+   -----END CERTIFICATE-----
+  registries.conf: |
+    unqualified-search-registries = ["registry.access.redhat.com", "docker.io"]
+    [[registry]]
+       prefix = ""
+       location = "registry.redhat.io/multicluster-engine"
+       mirror-by-digest-only = true
+    [[registry.mirror]]
+       location = "bastion-995pv.995pv.dynamic.opentlc.com:443/multicluster-engine"
+    [[registry]]
+       prefix = ""
+       location = "quay.io/openshift-release-dev/ocp-release"
+       mirror-by-digest-only = true
+    [[registry.mirror]]
+       location = "bastion-995pv.995pv.dynamic.opentlc.com:443/openshift/release-images"
+    [[registry]]
+       prefix = ""
+       location = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
+       mirror-by-digest-only = true
+    [[registry.mirror]]
+       location = "bastion-995pv.995pv.dynamic.opentlc.com:443/openshift/release"
+    [[registry]]
+       prefix = ""
+       location = "registry.redhat.io/rhacm2"
+       mirror-by-digest-only = true
+    [[registry.mirror]]
+       location = "bastion-995pv.995pv.dynamic.opentlc.com:443/rhacm2"

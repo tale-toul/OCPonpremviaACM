@@ -1,0 +1,31 @@
+apiVersion: agent-install.openshift.io/v1beta1
+kind: AgentServiceConfig
+metadata:
+   name: agent
+spec:
+  databaseStorage:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+  filesystemStorage:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 100Gi
+  imageStorage:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 50Gi
+  mirrorRegistryRef:
+   name: mirror-config
+  osImages:
+    - openshiftVersion: "4.15"
+      version: "415.92.202402130021-0"
+      url: "http://bastion-995pv.995pv.dynamic.opentlc.com/rhcos-4.15.0-x86_64-live.x86_64.iso"
+      cpuArchitecture: "x86_64"
+

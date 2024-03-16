@@ -1,0 +1,70 @@
+additionalTrustBundlePolicy: Proxyonly
+apiVersion: v1
+baseDomain: dynamic.opentlc.com
+compute:
+- architecture: amd64
+  hyperthreading: Enabled
+  name: worker
+  platform: {}
+  replicas: 3
+controlPlane:
+  architecture: amd64
+  hyperthreading: Enabled
+  name: master
+  platform: {}
+  replicas: 3
+metadata:
+  creationTimestamp: null
+  name: sjmzk
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.0.0.0/16
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  vsphere:
+    apiVIPs:
+    - 192.168.95.201
+    failureDomains:
+    - name: generated-failure-domain
+      region: generated-region
+      server: vcenter.sddc-44-197-86-61.vmwarevmc.com 
+      topology:
+        computeCluster: /SDDC-Datacenter/host/Cluster-1
+        datacenter: SDDC-Datacenter
+        datastore: /SDDC-Datacenter/datastore/WorkloadDatastore
+        networks:
+        - segment-sandbox-sjmzk
+        resourcePool: /SDDC-Datacenter/host/Cluster-1//Resources
+        folder: /SDDC-Datacenter/vm/Workloads/sandbox-sjmzk
+      zone: generated-zone
+    ingressVIPs:
+    - 192.168.95.202
+    vcenters:
+    - datacenters:
+      - SDDC-Datacenter
+      password: t4uy8zoGPJQ7
+      port: 443
+      server: vcenter.sddc-44-197-86-61.vmwarevmc.com 
+      user: sandbox-sjmzk@vc.opentlc.com
+    clusterOSImage: http://bastion-995pv.995pv.dynamic.opentlc.com/rhcos-vmware.x86_64.ova?sha256=9b3d5a598928ec52b0d32092d0a9a41f0ec8a238eb9fff8563266b9351919e20
+imageContentSources:
+ - mirrors:
+   - bastion-995pv.995pv.dynamic.opentlc.com:443/openshift/release-images
+   source: quay.io/openshift-release-dev/ocp-release
+ - mirrors:
+   - bastion-995pv.995pv.dynamic.opentlc.com:443/openshift/release
+   source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+pullSecret: '{"auths":{"bastion-995pv.995pv.dynamic.opentlc.com:443":{"auth":"aW5pdDowZzY0dFhhb3lMMTNxdVU1WVM5aXZKREE3UThsV21DMg=="}}}'
+sshKey: |
+  ssh-rsa AAAAB3Nz...
+additionalTrustBundle: |
+   -----BEGIN CERTIFICATE-----
+   MIID/jCCAuagAwIBAgIUcTPgO9RSv9q5Ys76wxsvZjS3PdwwDQYJKoZIhvcNAQEL
+   ...
+   2VAODDFugUjzzmTV+UTfM5mu
+   -----END CERTIFICATE-----
