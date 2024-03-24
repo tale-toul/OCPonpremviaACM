@@ -8,9 +8,9 @@
 
 ## Introduction
 
-This documents is specific for deploying components in the demo.redhat.com platform.
+This documents is specific for deploying components in the [demo.redhat.com](https://demo.redhat.com) platform.
 
-This project details how to install a Management cluster using vsphere IPI method, in both a connected and disconnected environment.
+This project provides instructions on how to install a Management cluster using vsphere IPI method, in both a connected and disconnected environments.
 
 There is a section on the creation and use of Infra nodes.
 
@@ -20,7 +20,7 @@ The de ployment of managed OCP clusters through ACM "on premisses" has its own s
 
 ## Deploying OCP using vSpere IPI on a Connected Environment 
 
-Create 1 **VMware Cloud Public Cloud Open Environment** in demo.redhat.com. 
+Create a **VMware Cloud Public Cloud Open Environment** in [demo.redhat.com](https://demo.redhat.com). 
 
 ![VMWare Cloud Public Open Env Provisioning](images/image14.png)
 
@@ -31,9 +31,9 @@ Make sure to enable DNS records creation for OCP. when ordering the environment
 ![Enable DNS records for OCP](images/image23.png)
 
 It takes about 20 minutes for the environment to be provisioned and ready.
-When the environment is ready, an email is received with information on how to access it.
+When the environment is ready, an email is received with information on how to access and use it.
 
-Ssh into the bastion node and verify the DNS records for the cluster:
+Ssh into the bastion node and verify the DNS records for the cluster.  The IPs associated with the API and wildcard \*.apps are public, but they are NATed to internal private IPs in the environment, this is specified in the email received from RHDP:
 
 ```
 $ dig +short api.glnm2.dynamic.opentlc.com
@@ -90,7 +90,11 @@ Download the vCenter’s root CA certificates.  Go to the vCenter's base URL, fo
 Copy the downloaded file to the bastion host and extract the compressed file:
 
 ```
-$ unzip download.zip
+$ scp download.zip lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com:
+lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com's password: 
+download.zip                                                                                                                                                100%   29KB 268.9KB/s   00:00 
+
+bastion$ unzip download.zip
 Archive:  download.zip
   inflating: certs/lin/7255df92.0    
   inflating: certs/mac/7255df92.0    
@@ -112,10 +116,11 @@ $ sudo cp -vi certs/lin/* /etc/pki/ca-trust/source/anchors
 $ sudo update-ca-trust extract
 ```
 
-Create the install-config.yaml file.  
+Create the install-config.yaml file. 
+
 This repository contains a reference install-config.yaml file for a connected vSphere IPI installation at **IPI/Orig-install-config.yaml**
 
-To create the initial configuration file use the command the following command.  The information required is in the email from RHDP.  For the VIP for API and Ingress use the NAT IP described in the email.
+To create the initial configuration file use the following command.  The information required is in the email from RHDP.  For the VIP for API and Ingress use the NAT IP described in the email. The cluster name is the GUID described in the same email.
 
 ```
 $ openshift-install create install-config
@@ -137,7 +142,7 @@ INFO Defaulting to only available network: segment-sandbox-glnm2
 INFO Install-Config created in: .
 ```
 
-The provided vCenter user does not have enough privileges to create its own folder, but one is created by environment provisioning system and communicated in the email from RHDP.  Edit the resulting install-config.yaml file and add the vcenter folder where the VMs will be created.
+The provided vCenter user does not have enough privileges to create its own folders, but one is created by environment provisioning system and communicated in the email from RHDP.  Edit the resulting install-config.yaml file and add the vcenter folder where the VMs will be created. Use the prefix /SDDC-Datacenter/vm/.
 ```
 ...
 platform:
