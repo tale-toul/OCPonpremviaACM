@@ -8,7 +8,7 @@
   * [Adding An Infra Machine Set](#adding-an-infra-machine-set)
     * [Assigning Infra Workloads to Infra Nodes](#assigning-infra-workloads-to-infra-nodes)
   * [Replacing The Worker Machine Set](#replacing-the-worker-machine-set)
-
+* [Installing RHACM on Infra Nodes](#installing-rhacm-on-infra-nodes)
 
 ## Introduction
 
@@ -700,6 +700,140 @@ NAME                              READY   STATUS    RESTARTS   AGE   IP         
 router-default-54f47c8bb9-vddkp   1/1     Running   0          11h   192.168.74.145   6lzvs-2czxc-infra-0-vclbd   <none>           <none>
 router-default-54f47c8bb9-zjlpr   1/1     Running   0          11h   192.168.74.77    6lzvs-2czxc-infra-0-jpg2w   <none>           <none>
 ```
+
+## Installing RHACM on Infra Nodes
+
+This section describes how to install RHACM to run its components on infra nodes, the oc CLI must be used for this, the installation instructions are based on the following chapters from the RHACM documentation:
+
+* [Installing from the OpenShift Container Platform CLI](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/2.9/html/install/installing#installing-from-the-cli)
+* [Installing the Red Hat Advanced Cluster Management hub cluster on infrastructure nodes](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/2.9/html/install/installing#installing-on-infra-node)
+
+These instructions are the same no matter if the cluster is connected or disconnected.
+
+Create the recommended namespace to install ACM components:
+
+```
+$ oc create namespace open-cluster-management
+namespace/open-cluster-management created
+
+$ oc project open-cluster-management
+Now using project "open-cluster-management" on server "https://api.6lzvs.dynamic.opentlc.com:6443".
+```
+
+Create the operator group based on the following yaml definition.  A reference yaml file can be found in this repository at **IPI/ACM/og.yaml**
+```
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: rhacm-og
+  namespace: open-cluster-management
+spec:
+  targetNamespaces:
+  - open-cluster-management
+```
+
+```
+$ oc create -f og.yaml 
+operatorgroup.operators.coreos.com/rhacm-og created
+```
+
+Create the operator subscription based on the following yaml definition. A reference yaml file can be found in this repository at **IPI/ACM/subs.yaml**.
+
+The node selector and tolerations ensure that the RHACM components are started on the infra nodes.  The RHACM components can still run on the infra nodes even if those nodes don't have the corresponding taint.
+
+```
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: acm-operator-subscription
+  namespace: open-cluster-management
+spec:
+  sourceNamespace: openshift-marketplace
+  source: redhat-operators
+  channel: release-2.9
+  installPlanApproval: Automatic
+  name: advanced-cluster-management
+  config:
+    nodeSelector:
+      node-role.kubernetes.io/infra: ""
+    tolerations:
+    - key: node-role.kubernetes.io/infra
+      effect: NoSchedule
+      operator: Exists
+```
+
+Create the subscription object.  The cluster may take a minute to react to the new subscription:
+```
+$ oc create -f subs.yaml 
+subscription.operators.coreos.com/acm-operator-subscription created
+
+$ oc get po
+NAME                                        READY   STATUS    RESTARTS   AGE
+multiclusterhub-operator-57c85fd5b9-pn52l   1/1     Running   0          46s
+
+$ oc get csv
+NAME                                 DISPLAY                                      VERSION   REPLACES                             PHASE
+advanced-cluster-management.v2.9.3   Advanced Cluster Management for Kubernetes   2.9.3     advanced-cluster-management.v2.9.2   Succeeded
+```
+
+Create the multiclusterhub custom resource.  The yaml definition changes slightly depending on the environment connection status:
+* In a disconnected environment a special annotation needs to be added to the multiclusterhub definition with the name of the catalogsource for the red hat operators.
+* In a connected environment the annotation is not used.
+
+Reference yaml files can be found in this repository at **IPI/ACM/multiclusterhub.yaml** and **IPI/ACM/multiclusterhub-disconnected.yaml**
+```
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  name: multiclusterhub
+  namespace: open-cluster-management
+  annotations:
+    installer.open-cluster-management.io/mce-subscription-spec: '{"source": "cs-redhat-operator-index"}'
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/infra: ""
+```
+Create the multicluster hub.  It takes a few minutes for all the pods to be started, after starting a few pods it looks like nothing is happenning, but after a couple minutes the rest of the pods are started:
+```
+$ oc create -f multiclusterhub.yaml                                                                                                                                
+multiclusterhub.operator.open-cluster-management.io/multiclusterhub created
+
+$ oc get pod -o wide
+NAME                                                              READY   STATUS    RESTARTS        AGE     IP            NODE                        NOMINATED NODE   READINESS GATES
+cluster-permission-776865b85c-tk2js                               1/1     Running   0               5m16s   10.129.2.37   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+console-chart-console-v2-566dbfb5c6-cr4x6                         1/1     Running   0               5m15s   10.131.2.41   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+console-chart-console-v2-566dbfb5c6-rgphk                         1/1     Running   0               5m14s   10.129.2.38   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+grc-policy-addon-controller-7896846658-h97vr                      1/1     Running   0               5m13s   10.131.2.42   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+grc-policy-addon-controller-7896846658-xjrcv                      1/1     Running   0               5m13s   10.129.2.39   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+grc-policy-propagator-6444bcd8bb-frg2j                            2/2     Running   0               5m11s   10.129.2.40   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+grc-policy-propagator-6444bcd8bb-zldrd                            2/2     Running   0               5m11s   10.131.2.43   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+insights-client-7769f5fbf-tk2sr                                   1/1     Running   0               5m9s    10.131.2.44   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+insights-metrics-8ff75bbcb-kwkl4                                  2/2     Running   0               5m10s   10.128.2.32   6lzvs-qrx2p-infra-0-vlwr5   <none>           <none>
+klusterlet-addon-controller-v2-759678d549-5n9wp                   1/1     Running   0               5m16s   10.131.2.40   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+klusterlet-addon-controller-v2-759678d549-hfjqt                   1/1     Running   0               5m16s   10.129.2.36   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+multicluster-integrations-5cfb9ddc47-knp84                        3/3     Running   1 (9m31s ago)   11m     10.131.2.14   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+multicluster-observability-operator-849fc87b67-fb98n              1/1     Running   0               5m8s    10.131.2.45   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+multicluster-operators-application-589667688b-t8zlv               3/3     Running   2 (9m30s ago)   11m     10.129.2.16   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+multicluster-operators-channel-698bf9dbbb-hkppf                   1/1     Running   1 (9m25s ago)   11m     10.131.2.15   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+multicluster-operators-hub-subscription-86b5c8876d-4dgk8          1/1     Running   1 (9m26s ago)   11m     10.128.2.16   6lzvs-qrx2p-infra-0-vlwr5   <none>           <none>
+multicluster-operators-standalone-subscription-5757b64469-sdlx9   1/1     Running   0               11m     10.128.2.14   6lzvs-qrx2p-infra-0-vlwr5   <none>           <none>
+multicluster-operators-subscription-report-85cf8979c-rk9xz        1/1     Running   0               11m     10.128.2.15   6lzvs-qrx2p-infra-0-vlwr5   <none>           <none>
+multiclusterhub-operator-57c85fd5b9-pn52l                         1/1     Running   0               23m     10.131.2.13   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+search-api-5c5c7b95b6-42vnb                                       1/1     Running   0               4m54s   10.131.2.49   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+search-collector-6bd977c768-db76f                                 1/1     Running   0               4m54s   10.131.2.48   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+search-indexer-6444885d8-frfhx                                    1/1     Running   0               4m54s   10.129.2.44   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+search-postgres-7dd8974cc8-flt6t                                  1/1     Running   0               4m55s   10.131.2.47   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+search-v2-operator-controller-manager-5dcbb5c8b4-dtfls            2/2     Running   0               5m8s    10.129.2.41   6lzvs-qrx2p-infra-0-gzmwd   <none>           <none>
+submariner-addon-dcf4dcb9c-rlp7r                                  1/1     Running   0               5m7s    10.128.2.33   6lzvs-qrx2p-infra-0-vlwr5   <none>           <none>
+volsync-addon-controller-5cd7589555-hklv5                         1/1     Running   0               5m6s    10.131.2.46   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+```
+A new dropdown menu appears in the Openshift web site.
+![ACM Drop Down Menu](images/image29.png)
+
+The local cluster should go into status Ready after a couple minutes:
+![Status Ready for Local Cluster](images/image44.png)
+
+
 
 
 
