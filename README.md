@@ -350,15 +350,245 @@ NAME                   DESIRED   CURRENT   READY   AVAILABLE   AGE
 
 #### Assigning Infra Workloads to Infra Nodes
 
-Infra workloads are running on the worker nodes because, out of the box, they lack the neccessary tolerations to run on the infra nodes:
+Infra workloads are running on the worker nodes because, out of the box, they lack the neccessary tolerations to run on the infra nodes.  In the next example, the router pods are running in worker nodes:
 
 ```
 $ oc get pods -n openshift-ingress -o wide
 NAME                              READY   STATUS    RESTARTS   AGE   IP               NODE                         NOMINATED NODE   READINESS GATES
-router-default-54f47c8bb9-748m7   1/1     Running   0          26m   192.168.74.151   **6lzvs-qrx2p-worker-0-ljzpg**   <none>           <none>
-router-default-54f47c8bb9-c27p7   1/1     Running   0          26m   192.168.74.80    **6lzvs-qrx2p-worker-0-l2x7r**   <none>           <none>
+router-default-54f47c8bb9-748m7   1/1     Running   0          26m   192.168.74.151   6lzvs-qrx2p-worker-0-ljzpg   <none>           <none>
+router-default-54f47c8bb9-c27p7   1/1     Running   0          26m   192.168.74.80    6lzvs-qrx2p-worker-0-l2x7r   <none>           <none>
+```
+To **migrate the router pods** so they run on the infra nodes, edit the default ingress controller and add a nodePlacement section that matches the infra label.  Add the toleration for the infra taint, the toleration value is left out because no value was assigned to the taint in the infra nodes:
+
+```
+...
+spec:
+  clientTLS:
+    clientCA:
+      name: ""
+    clientCertificatePolicy: ""
+  httpCompression: {}
+  httpEmptyRequestsPolicy: Respond
+  httpErrorCodePages:
+    name: ""
+  nodePlacement:
+    nodeSelector:
+      matchLabels:
+        node-role.kubernetes.io/infra: ""
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/infra
+  replicas: 2
+  tuningOptions:
+    reloadInterval: 0s
+...
+```
+After the change is applied, the router pods are redeployed to the infra nodes.
+```
+$ oc get pods -n openshift-ingress -o wide                                                                                                                         
+NAME                              READY   STATUS        RESTARTS   AGE   IP               NODE                         NOMINATED NODE   READINESS GATES                                      
+router-default-54f47c8bb9-c27p7   1/1     Terminating   0          36m   192.168.74.80    6lzvs-qrx2p-worker-0-l2x7r   <none>           <none>                                               
+router-default-644695d789-l8q68   1/1     Running       0          51s   192.168.74.152   6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>                                               
+router-default-644695d789-rrxrv   1/1     Running       0          15s   192.168.74.150   6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+```
+To **migrate the registry pods to the infra nodes** [add a nodePlacement section to the registry config object](https://docs.openshift.com/container-platform/4.13/machine_management/creating-infrastructure-machinesets.html#infrastructure-moving-registry_creating-infrastructure-machinesets).
+
+In the case of a vsphere IPI installation, the registry is in a removed management state because no object storage is available:
+
+```
+$ oc get config cluster -o yaml
+apiVersion: imageregistry.operator.openshift.io/v1
+kind: Config
+metadata:
+  name: cluster
+spec:
+  logLevel: Normal
+  managementState: Removed
+  observedConfig: null
+  operatorLogLevel: Normal
+  proxy: {}
+  replicas: 1
+  requests:
+    read:
+      maxWaitInQueue: 0s
+    write:
+      maxWaitInQueue: 0s
+  rolloutStrategy: RollingUpdate
+  storage: {}
+```
+This has the effect of not having any registry pods running in the cluster:
+```
+$ oc get pod -n openshift-image-registry -l docker-registry=default
+No resources found in openshift-image-registry namespace.
 ```
 
+To assign some storage to the registry, create a PVC object like the following, of type ReadWriteOnce which is the mode available from the thin CSI driver in vSphere.  A reference yaml file can be found in this repository at **IPI/image-registry-storage-pvc.yaml**:
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-registry-storage
+  namespace: openshift-image-registry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: thin-csi
+  volumeMode: Filesystem
+
+$ oc create -f image-registry-storage.yaml
+persistentvolumeclaim/image-registry-storage created
+```
+
+Set the management state to Managed and add a storage section.  In this case the storage is provided by the PVC created above which only creates RWO PVCs, so only one replica of the registry pod can be running at any given time.  
+
+Add a node selector to pin the registry to the infra nodes, and the toleration to allow the pod to be executed there.  The toleration value is left out because no value was assigned to the taint in the infra nodes
+
+Set the rolloutStrategy to Recreate.  This is to prevent blocking the redeployment of the registry pod in case a change in configuration is made, if Recreate is not used, the running pod does not release the PVC and the new pod cannot be created.  A reference yaml file with the configuration can be found in this repository at **IPI/config-image-registry.yaml**:
+```
+apiVersion: imageregistry.operator.openshift.io/v1
+kind: Config
+metadata:
+  name: cluster
+spec:
+  logLevel: Normal
+  managementState: Managed
+  observedConfig: null
+  operatorLogLevel: Normal
+  proxy: {}
+  replicas: 1
+  requests:
+    read:
+      maxWaitInQueue: 0s
+    write:
+      maxWaitInQueue: 0s
+  rolloutStrategy: Recreate
+  storage:
+    managementState: Managed
+    pvc:
+      claim: image-registry-storage
+  unsupportedConfigOverrides: null
+  nodeSelector:
+    node-role.kubernetes.io/infra: ""
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/infra
+```
+The new registry pod is started in an infra node:
+```
+$ oc get pod -n openshift-image-registry -l docker-registry=default -o wide
+NAME                              READY   STATUS    RESTARTS   AGE     IP           NODE                        NOMINATED NODE   READINESS GATES
+image-registry-5cd7cbb669-7kv54   1/1     Running   0          6m52s   10.131.2.7   6lzvs-qrx2p-infra-0-6zh5b   <none>           <none>
+```
+
+To **migrate the monitoring stack to the infra nodes** create a configmap in the openshift-monitoring namespace with the nodePlacement section and toleratoins for all the monitoring components. A reference yaml file can be found in this repository at IPI/cluster-monitoring-config-map:
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |+
+    alertmanagerMain:
+      nodeSelector: 
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    prometheusK8s:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    prometheusOperator:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    k8sPrometheusAdapter:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    kubeStateMetrics:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    telemeterClient:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    openshiftStateMetrics:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+    thanosQuerier:
+      nodeSelector:
+        node-role.kubernetes.io/infra: ""
+      tolerations:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+```
+Apply the config map definition
+```
+$ oc create -f cluster-monitoring-config-map                                                                                                                       
+configmap/cluster-monitoring-config created
+
+$ oc get pods -n openshift-monitoring -o wide
+NAME                                                     READY   STATUS    RESTARTS   AGE    IP               NODE                         NOMINATED NODE   READINESS GATES
+alertmanager-main-0                                      6/6     Running   0          43s    10.129.2.15      6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+alertmanager-main-1                                      6/6     Running   0          76s    10.128.2.12      6lzvs-qrx2p-infra-0-vlwr5    <none>           <none>
+cluster-monitoring-operator-6c76c86bcc-l4dn5             1/1     Running   0          152m   10.128.0.9       6lzvs-qrx2p-master-0         <none>           <none>
+kube-state-metrics-7f74f69554-qmpmw                      3/3     Running   0          81s    10.131.2.9       6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>
+monitoring-plugin-647d586488-mtfnj                       1/1     Running   0          133m   10.131.0.11      6lzvs-qrx2p-worker-0-rrb5k   <none>           <none>
+monitoring-plugin-647d586488-s5t6v                       1/1     Running   0          133m   10.129.2.7       6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+node-exporter-2cskx                                      2/2     Running   0          133m   192.168.74.79    6lzvs-qrx2p-infra-0-vlwr5    <none>           <none>
+node-exporter-2llz2                                      2/2     Running   0          133m   192.168.74.152   6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>
+node-exporter-2nn42                                      2/2     Running   0          133m   192.168.74.80    6lzvs-qrx2p-worker-0-l2x7r   <none>           <none>
+node-exporter-89hlf                                      2/2     Running   0          133m   192.168.74.150   6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+node-exporter-8pb6n                                      2/2     Running   0          133m   192.168.74.149   6lzvs-qrx2p-worker-0-rrb5k   <none>           <none>
+node-exporter-k5ps6                                      2/2     Running   0          133m   192.168.74.147   6lzvs-qrx2p-master-0         <none>           <none>
+node-exporter-pt6q6                                      2/2     Running   0          133m   192.168.74.148   6lzvs-qrx2p-master-2         <none>           <none>
+node-exporter-r2jms                                      2/2     Running   0          133m   192.168.74.151   6lzvs-qrx2p-worker-0-ljzpg   <none>           <none>
+node-exporter-wbplf                                      2/2     Running   0          133m   192.168.74.44    6lzvs-qrx2p-master-1         <none>           <none>
+openshift-state-metrics-db6888695-dhsj4                  3/3     Running   0          81s    10.131.2.10      6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>
+prometheus-adapter-6d95cc7bd9-jlswd                      1/1     Running   0          78s    10.129.2.13      6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+prometheus-adapter-6d95cc7bd9-q5hst                      1/1     Running   0          78s    10.131.2.12      6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>
+prometheus-k8s-0                                         6/6     Running   0          46s    10.128.2.13      6lzvs-qrx2p-infra-0-vlwr5    <none>           <none>
+prometheus-k8s-1                                         6/6     Running   0          65s    10.129.2.14      6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+prometheus-operator-7d84c9789-95tz5                      2/2     Running   0          88s    10.129.2.11      6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+prometheus-operator-admission-webhook-667fbc8566-ts22d   1/1     Running   0          93s    10.131.2.8       6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>
+prometheus-operator-admission-webhook-667fbc8566-vc42q   1/1     Running   0          93s    10.129.2.10      6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+telemeter-client-b69cb8cbd-fn5v6                         3/3     Running   0          80s    10.129.2.12      6lzvs-qrx2p-infra-0-gzmwd    <none>           <none>
+thanos-querier-858b5894d-995gh                           6/6     Running   0          78s    10.131.2.11      6lzvs-qrx2p-infra-0-6zh5b    <none>           <none>
+thanos-querier-858b5894d-fzzvr                           6/6     Running   0          79s    10.128.2.11      6lzvs-qrx2p-infra-0-vlwr5    <none>           <none>
+```
+Monitoring-plugin pods are still running on worker nodes, this could be a bug in the monitoring operator.  The node exporters running on the workers is expected, one node exporter should be running on each and every node.
+
+Some other "default" infra workloads continue running in the worker nodes.  This is one of the reasons why the taint is left out when the cluster does not have worker nodes, only infra and masters, to ensure these pods can still run on the infra nodes:
+
+ * Cronjobs for image-prunner 
+ * openshift-operator-lifecycle-manager may need to be modified so that the pods can run on infra nodes.
+ * The network-check-source pod 
+```
+$ oc get po -n openshift-network-diagnostics -o wide -l app=network-check-source
+NAME                                   READY   STATUS    RESTARTS       AGE    IP           NODE                         NOMINATED NODE   READINESS GATES
+network-check-source-c9468c84c-w2hcf   1/1     Running   4 (140m ago)   155m   10.130.2.7   6lzvs-qrx2p-worker-0-ljzpg   <none>           <none>
+```
 
 ### Replacing The Worker Machine Set
 

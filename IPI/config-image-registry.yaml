@@ -1,0 +1,34 @@
+apiVersion: imageregistry.operator.openshift.io/v1
+kind: Config
+metadata:
+  creationTimestamp: "2024-03-25T07:44:00Z"
+  finalizers:
+  - imageregistry.operator.openshift.io/finalizer
+  generation: 6
+  name: cluster
+  resourceVersion: "78890"
+  uid: 93dc947d-9ca9-478e-88e3-ebc4c2159c9d
+spec:
+  httpSecret: 8dee816fc6ea9d0e4d72f15fc385fcc23dfd31ac529382f27730c9b97281e72fc58d0d8a563a0b4f21331d1a1f6a2bbbdbf6c3ec3d04be3ecc6880fd8b46fbb8
+  logLevel: Normal
+  managementState: Managed
+  nodeSelector:
+    node-role.kubernetes.io/infra: ""
+  observedConfig: null
+  operatorLogLevel: Normal
+  proxy: {}
+  replicas: 1
+  requests:
+    read:
+      maxWaitInQueue: 0s
+    write:
+      maxWaitInQueue: 0s
+  rolloutStrategy: Recreate
+  storage:
+    managementState: Managed
+    pvc:
+      claim: image-registry-storage
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/infra
+  unsupportedConfigOverrides: null
