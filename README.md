@@ -5,8 +5,9 @@
 * [Introduction](#introduction)
 * [Deploying OCP using vSpere IPI on a Connected Environment ](#deploying-ocp-using-vspere-ipi-on-a-connected-environment)
 * [Infra Nodes During Cluster Deployment](#infra-nodes-during-cluster-deployment)
-* [Adding An Infra Machine Set](#adding-an-infra-machine-set)
-* [Replacing The Worker Machine Set](#replacing-the-worker-machine-set)
+  * [Adding An Infra Machine Set](#adding-an-infra-machine-set)
+    * [Assigning Infra Workloads to Infra Nodes](#assigning-infra-workloads-to-infra-nodes)
+  * [Replacing The Worker Machine Set](#replacing-the-worker-machine-set)
 
 
 ## Introduction
@@ -217,7 +218,7 @@ glnm2/openshift/99_openshift-cluster-api_worker-machineset-0.yaml
 ```
 ### Adding An Infra Machine Set
 
-In this example a new machineset for infra nodes is created, resulting in 2 machinesets: one for workers and one for infra. See later for an example in which the worker machineset is replaced by an infra machineset.
+In this case a new machineset for infra nodes is created, resulting in 2 machinesets: one for workers and one for infra. See later for an example in which the worker machineset is replaced by an infra machineset.
 
 Copy the worker machineset as the infra machineset
 
@@ -227,9 +228,23 @@ $ cd glnm2/openshift/
 $ cp 99_openshift-cluster-api_worker-machineset-0.yaml \
   99_openshift-cluster-api_infra-machineset-0.yaml
 ```
-Modify the infra machineset according to the [documentation.](https://docs.openshift.com/container-platform/4.13/machine_management/creating-infrastructure-machinesets.html#machineset-yaml-vsphere_creating-infrastructure-machinesets)  Replace all references to worker and put infra instead.
+Modify the infra machineset according to the [documentation.](https://docs.openshift.com/container-platform/4.13/machine_management/creating-infrastructure-machinesets.html#machineset-yaml-vsphere_creating-infrastructure-machinesets)  Replace all references to worker and put infra instead except for for **userDataSecret** referencing the worker user data.
 
-The amount of disk, CPU, and memory resources can be specified in the machineset definition. Keep the original value for **userDataSecret** referencing the worker user data
+What makes the resulting nodes created from this machineset, infra nodes, is the label and toleration added to them:
+
+```
+...
+spec:
+  metadata:
+    labels:
+      node-role.kubernetes.io/infra: ""
+    taints:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+...
+```
+
+The amount of disk, CPU, and memory resources can be specified in the machineset definition. 
 
 The final result looks like this:
 ```
@@ -332,6 +347,18 @@ NAME                   DESIRED   CURRENT   READY   AVAILABLE   AGE
 6lzvs-xbd25-infra-0    3         3         3       3           39m
 6lzvs-xbd25-worker-0   3         3         3       3           39m
 ```
+
+#### Assigning Infra Workloads to Infra Nodes
+
+Infra workloads are running on the worker nodes because, out of the box, they lack the neccessary tolerations to run on the infra nodes:
+
+```
+$ oc get pods -n openshift-ingress -o wide
+NAME                              READY   STATUS    RESTARTS   AGE   IP               NODE                         NOMINATED NODE   READINESS GATES
+router-default-54f47c8bb9-748m7   1/1     Running   0          26m   192.168.74.151   **6lzvs-qrx2p-worker-0-ljzpg**   <none>           <none>
+router-default-54f47c8bb9-c27p7   1/1     Running   0          26m   192.168.74.80    **6lzvs-qrx2p-worker-0-l2x7r**   <none>           <none>
+```
+
 
 ### Replacing The Worker Machine Set
 
