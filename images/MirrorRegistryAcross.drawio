@@ -1,0 +1,61 @@
+<mxfile host="Electron" modified="2024-03-25T12:33:19.497Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.1.0 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="yvRROR6xaG3QcYqbvUOf" version="24.1.0" type="device">
+  <diagram name="Page-1" id="n04ryJorRN3yGRrRY3HO">
+    <mxGraphModel dx="989" dy="601" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="WavKjpJAf__BgIwCcnvl-1" value="" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="320" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-2" value="" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="481" y="40" width="320" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" vertex="1" parent="1">
+          <mxGeometry x="90" y="70" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-4" value="Bastion 1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="90" y="68" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;" vertex="1" parent="1">
+          <mxGeometry x="600" y="60" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-6" value="Bastion 2&lt;div&gt;Mirror Registry&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="603" y="63" width="90" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-7" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;VMWare Open Environment 1&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="90" y="330" width="190" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-9" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;VMWare Open Environment 2&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="540" y="330" width="190" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-15" value="" style="shape=or;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="481" y="97" width="20" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-17" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;strokeWidth=2;" edge="1" parent="1" source="WavKjpJAf__BgIwCcnvl-15" target="WavKjpJAf__BgIwCcnvl-5">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="220" as="sourcePoint" />
+            <mxPoint x="450" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-22" value="" style="shape=flexArrow;endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.013;entryY=0.409;entryDx=0;entryDy=0;entryPerimeter=0;fillColor=#76608a;strokeColor=#432D57;endWidth=10.900383141762452;endSize=9.461111111111112;width=2.7586206896551726;" edge="1" parent="1" source="WavKjpJAf__BgIwCcnvl-3" target="WavKjpJAf__BgIwCcnvl-15">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="220" as="sourcePoint" />
+            <mxPoint x="450" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-24" value="" style="edgeStyle=entityRelationEdgeStyle;startArrow=none;endArrow=none;segment=10;curved=1;sourcePerimeterSpacing=0;targetPerimeterSpacing=0;rounded=0;exitX=0.39;exitY=0.976;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" target="WavKjpJAf__BgIwCcnvl-31" parent="1" source="WavKjpJAf__BgIwCcnvl-15">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="349" y="235.68965517241372" as="sourcePoint" />
+            <mxPoint x="520" y="175" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-31" value="" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;" vertex="1" parent="1">
+          <mxGeometry x="530" y="160" width="240" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WavKjpJAf__BgIwCcnvl-10" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;font-family: &amp;quot;Roboto Mono&amp;quot;, monospace; color: rgb(24, 128, 56); background-color: transparent; font-variant-numeric: normal; font-variant-east-asian: normal; font-variant-alternates: normal; font-variant-position: normal; vertical-align: baseline; white-space-collapse: preserve;&quot;&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;443/TCP&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;span id=&quot;docs-internal-guid-6b94cd77-7fff-062d-003c-dadbd53e3160&quot; style=&quot;font-family: &amp;quot;Roboto Mono&amp;quot;, monospace; color: rgb(24, 128, 56); background-color: transparent; font-variant-numeric: normal; font-variant-east-asian: normal; font-variant-alternates: normal; font-variant-position: normal; vertical-align: baseline; white-space-collapse: preserve;&quot;&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;bastion-995pv.995pv.dynamic.opentlc.com&lt;/font&gt;&lt;/span&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="539" y="159" width="270" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

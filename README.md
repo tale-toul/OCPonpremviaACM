@@ -9,6 +9,7 @@
     * [Assigning Infra Workloads to Infra Nodes](#assigning-infra-workloads-to-infra-nodes)
   * [Replacing The Worker Machine Set](#replacing-the-worker-machine-set)
 * [Installing RHACM on Infra Nodes](#installing-rhacm-on-infra-nodes)
+* [Disconnected Environments](#disconnected-environments)
 
 ## Introduction
 
@@ -832,6 +833,19 @@ A new dropdown menu appears in the Openshift web site.
 
 The local cluster should go into status Ready after a couple minutes:
 ![Status Ready for Local Cluster](images/image44.png)
+
+## Disconnected Environments
+
+This section describes how to deploy an Openshift cluster on a disconnected environment, considering the special limitations of the [demo.redhat.com](https://demo.redhat.com).
+
+The disconnected environment in this example does not have direct access to the public Red Hat image registries in order to fetch the images required for the installation.  A local registry must be provisioned so the cluster nodes can download the images from it and the installation can succeed. 
+
+The local registry used is the [quay mirror registry](https://github.com/quay/mirror-registry)
+
+The mirror registry service name needs to be resolvable by DNS, by any client accessing it.  Considering demo.redhat.com limitations regarding DNS in vSphere based environments, in which it is not possible to create new or modify existing DNS records, we are going to deploy the mirror registry remotely from one VMware Cloud Open Environment onto another so the bastion host on the second environment can be used as the mirror registry for the first or any other environment.  The bastion host public DNS name in the second environment will be used to access the mirror registry.
+
+![Mirror Registry Across Environments](images/MirrorRegistryAcross.drawio.png)
+
 
 
 
