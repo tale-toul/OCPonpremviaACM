@@ -10,6 +10,10 @@
   * [Replacing The Worker Machine Set](#replacing-the-worker-machine-set)
 * [Installing RHACM on Infra Nodes](#installing-rhacm-on-infra-nodes)
 * [Disconnected Environments](#disconnected-environments)
+  * [Setting Up the Environment](#setting-up-the-environment)
+  * [Installing the Mirror Registry](#installing-the-mirror-registry)
+  * [Uninstalling the Mirror Registry](#uninstalling-the-mirror-registry)
+  * [Mirroring Images](#mirroring-images)
 
 ## Introduction
 
@@ -51,7 +55,7 @@ Get the installer, oc client and pull secret from [the Red Hat Console](https://
 Uncompress the tar files and put them in the running path:
 
 ```
-$ scp ~/Descargas/openshift-* /home/jjerezro/Descargas/pull-secret.txt   \
+$ scp ~/Descargas/openshift-* ~/Descargas/pull-secret.txt   \
   lab-user@bastion-glnm2.glnm2.dynamic.opentlc.com
 
 $ tar xvf openshift-client-linux.tar.gz
@@ -846,8 +850,276 @@ The mirror registry service name needs to be resolvable by DNS, by any client ac
 
 ![Mirror Registry Across Environments](images/MirrorRegistryAcross.drawio.png)
 
+### Setting Up the Environment
 
+Create a new VMware Cloud Public Cloud Open Environment.
 
+On the new environment, the bastion host does not have enough resources to run the mirror registry. 
+
+Shutdown the bastion host and add:
+
+* One additional vCPU, 2 in total
+* Increase the memory to 8GB
+* Add a disk of 250GB.
+
+![Extend Bastion Resources](images/BastionMirrorResources.png)
+
+Boot up the bastion.
+
+Ssh into the bastion host and show the available disks, a new sdb disk of 250G should appear:
+```
+$ lsblk
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda      8:0    0   30G  0 disk 
+├─sda1   8:1    0    1M  0 part 
+├─sda2   8:2    0  100M  0 part /boot/efi
+└─sda3   8:3    0 29.9G  0 part /
+sdb      8:16   0  250G  0 disk 
+sr0     11:0    1 1024M  0 rom
+```
+Use LVM instead of the raw disk device, this way the partition can be extend if you run out of space for the mirror registry.
+```
+$ sudo yum install -y lvm2
+
+$ sudo pvcreate /dev/sdb
+  Physical volume "/dev/sdb" successfully created.
+
+$ sudo vgcreate vgmirror /dev/sdb
+  Volume group "vgmirror" successfully created
+
+$ sudo vgs
+  VG       #PV #LV #SN Attr   VSize    VFree   
+  vgmirror   1   0   0 wz--n- <250.00g <250.00g
+
+$ sudo lvcreate -n lvmirror -l +100%FREE vgmirror
+  Logical volume "lvmirror" created.
+
+$ sudo lvs
+  LV       VG       Attr       LSize    Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvmirror vgmirror -wi-a----- <250.00g 
+
+$ sudo mkfs.xfs /dev/vgmirror/lvmirror
+```
+
+Create the mount point
+```
+$ sudo mkdir /var/mirror-registry
+```
+
+Get the UUID for the /dev/sdb disk
+```
+$ sudo lsblk
+NAME                MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+...
+sdb                   8:16   0  250G  0 disk 
+└─vgmirror-lvmirror 253:0    0  250G  0 lvm  
+```
+
+Add an entry like the following to the /etc/fstab file
+```
+UUID=d327e61d-8372-435...   /var/mirror-registry   xfs  defaults  0  0
+```
+
+Mount the partition
+```
+$ sudo mount /var/mirror-registry/
+
+$ df -Ph
+Filesystem                     Size  Used Avail Use% Mounted on
+...
+/dev/mapper/vgmirror-lvmirror  250G  1.8G  249G   1% /var/mirror-registry
+```
+
+### Installing the Mirror Registry
+
+This instructions are base on [the official documentation](https://docs.openshift.com/container-platform/4.15/installing/disconnected_install/installing-mirroring-creating-registry.html#mirror-registry-localhost_installing-mirroring-creating-registry)
+
+The mirror registry installer is downloaded and executed on the VMWare Open Environment 1, but the installation target is the VMWare Open Environment 2 where the actual mirror registry will run.
+
+The mirror registry installer is executed on the first environment, but it needs to run an ansible playbook with root privileges against the second environment so that the registry service can listen on privileged port 443.  
+
+Copy the existing ssh key for the root user in the second environment to the first environment:
+
+```
+<second env>$ sudo ls /root/.ssh/
+
+<second env>$ sudo cat /root/.ssh/bastion_995pv
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
+NhAAAAAwEAAQAAAYEA1QlqAIineSlrxIyEgOQ1A78uD36e1p32sTtpqCV/O0ZUWng1LBhz
+...
+9yijev/D9OldJLAAAAEnJvb3RAYmFzdGlvbi05OTVwdg==
+-----END OPENSSH PRIVATE KEY-----
+
+<first env>$ vim ~/.ssh/mirror-root
+<first env>$ chmod 0400 ~/.ssh/mirror-root
+<first env>$ ssh -i ~/.ssh/mirror-root root@bastion-995pv.995pv.dynamic.opentlc.com
+Last failed login: Fri Mar  8 04:31:40 EST 2024 from 79.138.85.216 on ssh:notty
+There were 17 failed login attempts since the last successful login.
+Last login: Thu Dec  7 05:08:51 2023
+
+<first env># whoami
+root
+```
+
+> If a non privileged port like the default 8443 is used for the mirror registry service, the ansible playbook can be run as a normal user in the second environment and an ssh key for the lab user can be created and copied over.  In this case the unprivileged user must be able to write to the quayStorage directory.
+```
+<first env>$ ssh-keygen -N '' -f ~/.ssh/mirror-unprivileged
+<first env>$ ssh-copy-id -i ~/.ssh/mirror.pub lab-user@bastion-995pv.995pv.dynamic.opentlc.com
+
+<first env>$ ssh -i ~/.ssh/mirror lab-user@bastion-995pv.995pv.dynamic.opentlc.com
+```
+Download the **mirror-registry.tar.gz**, **mirror-plugin** and the **oc** CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads).
+![Download Mirror Registry Installer](images/DownloadMirrorRegistry.png)
+
+Copy the files to the first environment and uncompress the tar file
+```
+$ scp mirror-registry.tar.gz oc-mirror.tar.gz  lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com:
+lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com's password: 
+mirror-registry.tar.gz                                                       100%  674MB  19.9MB/s   00:33
+
+<first env>$ mkdir mirror
+<first env>$ mv mirror-registry.tar.gz oc-mirror.tar.gz mirror
+<first env>$ cd mirror/
+<first env>$ tar xvf mirror-registry.tar.gz 
+image-archive.tar
+execution-environment.tar
+mirror-registry
+```
+
+Run the installer on the first env to install the mirror registry remotely on the second env.
+
+The DNS name for the mirror registry service is the bastion's public hostname on the second environment, and the port where the service listens for requests, if no port is specified the default is 8443, the protocol is HTTPS regardless of the port.
+
+`--quayHostname bastion-995pv.995pv.dynamic.opentlc.com:443`
+
+A directory inside the partition where the images will be storage is the one associated with the disk added earlier
+
+	`--quayStorage /var/mirror-registry/data`
+
+Because this is a remote installation from the first environment into the second environment, the connection parameters for the second environment are needed:
+
+ * If the mirror registry listens on port 443, because this is a privileged port the remote user must be root:
+	`--targetHostname bastion-995pv.995pv.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root`
+
+ * If the mirror registry listens on port 8443 or other non privileged port the remote user can be lab-user:
+	`--targetHostname bastion-995pv.995pv.dynamic.opentlc.com --targetUsername lab-user -k ~/.ssh/mirror-unprivileged`
+
+Run the full installer command 
+```
+<first env>$ ./mirror-registry install --quayHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com:443 --quayStorage /var/mirror-registry --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root                                                                                                                                   
+                                                                                                                                                                                                 __   __                                                                                                                                                                                    
+  /  \ /  \     ______   _    _     __   __   __                                                                                                                                               / /\ / /\ \   /  __  \ | |  | |   /  \  \ \ / /       
+/ /  / /  \ \  | |  | | | |  | |  / /\ \  \   /                                                                                                                                               \ \  \ \  / /  | |__| | | |__| | / ____ \  | |                                                                                                                                                
+ \ \/ \ \/ /   \_  ___/  \____/ /_/    \_\ |_|          
+  \__/ \__/      \ \__                                                                                                                                                                        
+                  \___\ by Red Hat                                                                                                                                                            
+ Build, Store, and Distribute your Containers                                                                                                                                                
+                                                                                                                                                                                              
+INFO[2024-03-25 12:15:17] Install has begun 
+...
+INFO[2024-03-25 12:21:54] Quay is available at https://bastion-vhnwk.vhnwk.dynamic.opentlc.com:8443 with credentials (init, idEh...bQyc9Rm813)
+```
+
+The final message contains the URL to access the registry and the user credentials.
+
+Save the credentials for later use.
+
+The installer creates systemd services for the different components:
+
+```
+<second env>$ systemctl status quay-app.service
+<second env>$ systemctl status quay-postgres.service
+<second env>$ systemctl status quay-redis.service 
+<second env>$ systemctl status quay-pod.service
+```
+Test the access to the registry.  The option --tls-verify=false is used so that podman does not reject the unknown root CA in the mirror registry:
+```
+<first env>$ podman login --tls-verify=false -u init -p UAha4s...9giwEj0 bastion-vhnwk.vhnwk.dynamic.opentlc.com
+Login Succeeded!
+```
+
+Access the web interface using the bastion external name (i.e. https://bastion-sjmzk.sjmzk.dynamic.opentlc.com)
+
+![Mirror Registry Web Interface](images/image49.png)
+
+### Uninstalling the Mirror Registry
+
+To uninstall the mirror registry run a command like the following.  
+
+The command is similar to the one used to install the mirror registry but in this case the quayHostname variable is not used and the quayStorage variable is replaced by quayRoot.
+
+This next command stops the systemd services, removes the services and deletes the directory specified with quayRoot, efectively deleting any mirrores packages in the host.  Removing the directory does not work if this is the root of a disk partition.
+```
+<first env>$ ./mirror-registry uninstall -v --quayRoot /var/mirror-registry --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root
+```
+
+If we don't want to remove the mirrored images, just leave out the quayRoot directory and answer no to the question asked when the command is run: "Are you sure want to delete quayRoot directory ~/quay-install and all storage data? [y/n]"
+
+### Mirroring Images
+
+Download the mirror-plugin and the oc CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads). These probably where downloaded preiously.
+
+Install the oc CLI and the oc-mirror plugin in the first environment:
+```
+<first env>$ tar xvf oc-mirror.tar.gz 
+oc-mirror
+
+<first env>$ chmod +x oc-mirror
+<first env>$ sudo cp oc-mirror /usr/local/bin/
+```
+Get a pull secret from from [Red Hat OpenShift Cluster Manager](https://console.redhat.com/openshift/install/pull-secret).
+
+Copy the pull secret to the first environment and make a copy of it in JSON format:
+```
+$ scp pull-secret.txt lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com:
+
+<first env>$ cat pull-secret.txt | jq . > pull-secret-json.txt
+```
+Generate the base64-encoded username and password token for your mirror registry:
+```
+$ echo -n 'init:j4HPx6Gu18O52I70zlknDQw9do3thqKF'| base64 -w0
+aW5pdDpqNEhQeDZHdTE4TzUySTcwemxrbkRRdzlkbzN0aHFLRg==
+```
+
+Edit the file with the pull secret in JSON format and add a section for the mirror registry.  If the port where the mirror registry is listening on is not 443, make sure to add the actual port number after the mirror registry hostname, for example "bastion-sjmzk.sjmzk.dynamic.opentlc.com:8443":
+```
+{
+  "auths": {
+	  "cloud.openshift.com": {
+    	"auth": "b3BlbnNoaWZ0LXJlbGVhc2...",
+    	"email": "myemail@example.com"
+	  },
+	  "quay.io": {
+    	"auth": "b3BlbnNoaWZ0LXJlbGVhc...",
+    	"email": "myemail@example.com"
+	  },
+	  "registry.connect.redhat.com": {
+    	"auth": "NTIzMjU0MDB8dWhjLTFIaW...",
+    	"email": "myemail@example.com"
+	  },
+	  "registry.redhat.io": {
+    	"auth": "NTIzMjU0MDB8dWhjLTFIaWRhWDBvbHZ0Wnl...",
+    	"email": "myemail@example.com"
+	  },
+    "bastion-sjmzk.sjmzk.dynamic.opentlc.com": {
+      "auth": "aW5pdDpwa1p...EpRTTBsWDRvNQ==",
+      "email": "myemail@example.com"
+	  }
+  }
+}
+```
+Verify the JSON formating of the resulting pull secret and install it so that it can be used by the oc CLI.  
+```
+<first env>$ jq . pull-secret-json.txt
+<first env>$ mkdir ~/.docker
+<first env>$ cp pull-secret-json.txt ~/.docker/config.json
+```
+Verify the pull secret and create the image set configuration file template.  This command does not change or add anything to the mirror registry but verifies that the Red Hat public image registry and the local mirror registry are accessible, and creates a configuration template.
+The “oc mirror” command can take a couple minutes to complete:
+```
+
+```
 
 
 
