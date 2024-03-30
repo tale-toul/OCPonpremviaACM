@@ -14,6 +14,8 @@
   * [Installing the Mirror Registry](#installing-the-mirror-registry)
   * [Uninstalling the Mirror Registry](#uninstalling-the-mirror-registry)
   * [Mirroring Images](#mirroring-images)
+  * [Mirroring Operators](#mirroring-operators)
+  * [Updating the Images](#updating-the-images)
 
 ## Introduction
 
@@ -840,13 +842,15 @@ The local cluster should go into status Ready after a couple minutes:
 
 ## Disconnected Environments
 
-This section describes how to deploy an Openshift cluster on a disconnected environment, considering the special limitations of the [demo.redhat.com](https://demo.redhat.com).
+This section describes how to deploy an Openshift cluster on a disconnected environment, considering the special limitations at [demo.redhat.com](https://demo.redhat.com).
 
 The disconnected environment in this example does not have direct access to the public Red Hat image registries in order to fetch the images required for the installation.  A local registry must be provisioned so the cluster nodes can download the images from it and the installation can succeed. 
 
 The local registry used is the [quay mirror registry](https://github.com/quay/mirror-registry)
 
-The mirror registry service name needs to be resolvable by DNS, by any client accessing it.  Considering demo.redhat.com limitations regarding DNS in vSphere based environments, in which it is not possible to create new or modify existing DNS records, we are going to deploy the mirror registry remotely from one VMware Cloud Open Environment onto another so the bastion host on the second environment can be used as the mirror registry for the first or any other environment.  The bastion host public DNS name in the second environment will be used to access the mirror registry.
+The mirror registry service name needs to be resolvable by DNS, from any client accessing it.  Considering demo.redhat.com limitations regarding DNS in demo.redhat.com vSphere based environments, in which it is not possible to create new or modify existing DNS records, we are going to deploy the mirror registry remotely from one VMware Cloud Open Environment onto another so the bastion host on the second environment can be used as the mirror registry for the first or any other environment.
+
+The bastion host public DNS name in the second environment will be used to access the mirror registry.
 
 ![Mirror Registry Across Environments](images/MirrorRegistryAcross.drawio.png)
 
@@ -908,11 +912,9 @@ $ sudo mkdir /var/mirror-registry
 
 Get the UUID for the /dev/sdb disk
 ```
-$ sudo lsblk
-NAME                MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+$ sudo blkid
 ...
-sdb                   8:16   0  250G  0 disk 
-└─vgmirror-lvmirror 253:0    0  250G  0 lvm  
+/dev/mapper/vgmirror-lvmirror: UUID="0ce458b9-0192-43d2-9cd1-beed7900c075" BLOCK_SIZE="512" TYPE="xfs"
 ```
 
 Add an entry like the following to the /etc/fstab file
@@ -942,8 +944,9 @@ Copy the existing ssh key for the root user in the second environment to the fir
 
 ```
 <second env>$ sudo ls /root/.ssh/
+authorized_keys  bastion_vhnwk  bastion_vhnwk.pub  config
 
-<second env>$ sudo cat /root/.ssh/bastion_995pv
+<second env>$ sudo cat /root/.ssh/bastion_vhnwk
 -----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
 NhAAAAAwEAAQAAAYEA1QlqAIineSlrxIyEgOQ1A78uD36e1p32sTtpqCV/O0ZUWng1LBhz
@@ -974,9 +977,11 @@ Download the **mirror-registry.tar.gz**, **mirror-plugin** and the **oc** CLI pa
 
 Copy the files to the first environment and uncompress the tar file
 ```
-$ scp mirror-registry.tar.gz oc-mirror.tar.gz  lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com:
-lab-user@bastion-6lzvs.6lzvs.dynamic.opentlc.com's password: 
+$ scp mirror-registry.tar.gz oc-mirror.tar.gz openshift-client-linux.tar.gz lab-user@bastion-gvsfj.gvsfj.dynamic.opentlc.com:
+lab-user@bastion-gvsfj.gvsfj.dynamic.opentlc.com's password:
 mirror-registry.tar.gz                                                       100%  674MB  19.9MB/s   00:33
+oc-mirror.tar.gz                                                             100%   62MB  19.4MB/s   00:03
+openshift-client-linux.tar.gz                                                100%   62MB  19.1MB/s   00:03
 
 <first env>$ mkdir mirror
 <first env>$ mv mirror-registry.tar.gz oc-mirror.tar.gz mirror
@@ -989,25 +994,27 @@ mirror-registry
 
 Run the installer on the first env to install the mirror registry remotely on the second env.
 
-The DNS name for the mirror registry service is the bastion's public hostname on the second environment, and the port where the service listens for requests, if no port is specified the default is 8443, the protocol is HTTPS regardless of the port.
+The variable **--quayHostname** gets assigned the DNS name for the mirror registry service is the bastion's public hostname on the second environment and the port where the service listens on for requests, if no port is specified the default is 8443, the protocol is HTTPS regardless of the port.
 
 `--quayHostname bastion-995pv.995pv.dynamic.opentlc.com:443`
 
-A directory inside the partition where the images will be storage is the one associated with the disk added earlier
+The variable **--quayStorage** gets assigned a directory inside the partition created earlier, where the images will be storaged
 
-	`--quayStorage /var/mirror-registry/data`
+`--quayStorage /var/mirror-registry/data`
 
-Because this is a remote installation from the first environment into the second environment, the connection parameters for the second environment are needed:
+Because this is a remote installation from the first environment to the second environment, the connection parameters for the second environment are needed:
 
  * If the mirror registry listens on port 443, because this is a privileged port the remote user must be root:
+
 	`--targetHostname bastion-995pv.995pv.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root`
 
  * If the mirror registry listens on port 8443 or other non privileged port the remote user can be lab-user:
+
 	`--targetHostname bastion-995pv.995pv.dynamic.opentlc.com --targetUsername lab-user -k ~/.ssh/mirror-unprivileged`
 
-Run the full installer command 
+Run the installer command:
 ```
-<first env>$ ./mirror-registry install --quayHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com:443 --quayStorage /var/mirror-registry --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root                                                                                                                                   
+<first env>$ ./mirror-registry install --quayHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com:443 --quayStorage /var/mirror-registry/data --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root
                                                                                                                                                                                                  __   __                                                                                                                                                                                    
   /  \ /  \     ______   _    _     __   __   __                                                                                                                                               / /\ / /\ \   /  __  \ | |  | |   /  \  \ \ / /       
 / /  / /  \ \  | |  | | | |  | |  / /\ \  \   /                                                                                                                                               \ \  \ \  / /  | |__| | | |__| | / ____ \  | |                                                                                                                                                
@@ -1043,22 +1050,24 @@ Access the web interface using the bastion external name (i.e. https://bastion-s
 
 ![Mirror Registry Web Interface](images/image49.png)
 
+The mirror registry is ready to be used.
+
 ### Uninstalling the Mirror Registry
 
 To uninstall the mirror registry run a command like the following.  
 
-The command is similar to the one used to install the mirror registry but in this case the quayHostname variable is not used and the quayStorage variable is replaced by quayRoot.
+The command is similar to the one used to install the mirror registry but in this case the **quayHostname** parameter is not used and the **quayStorage** parameter is replaced by **quayRoot**.
 
-This next command stops the systemd services, removes the services and deletes the directory specified with quayRoot, efectively deleting any mirrores packages in the host.  Removing the directory does not work if this is the root of a disk partition.
+The uninstall command stops the systemd services, removes the services and deletes the directory specified with quayRoot, efectively deleting any mirrores packages in the host.  Removing the directory does not work if this is the root of a disk partition.
 ```
-<first env>$ ./mirror-registry uninstall -v --quayRoot /var/mirror-registry --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root
+<first env>$ ./mirror-registry uninstall -v --quayRoot /var/mirror-registry/data --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root
 ```
 
-If we don't want to remove the mirrored images, just leave out the quayRoot directory and answer no to the question asked when the command is run: "Are you sure want to delete quayRoot directory ~/quay-install and all storage data? [y/n]"
+If you don't want to remove the mirrored images, just leave out the quayRoot directory and answer **no** to the question: "Are you sure want to delete quayRoot directory ~/quay-install and all storage data? [y/n]"
 
 ### Mirroring Images
 
-Download the mirror-plugin and the oc CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads). These probably where downloaded preiously.
+Download the mirror-plugin and the oc CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads).
 
 Install the oc CLI and the oc-mirror plugin in the first environment:
 ```
@@ -1082,26 +1091,26 @@ $ echo -n 'init:j4HPx6Gu18O52I70zlknDQw9do3thqKF'| base64 -w0
 aW5pdDpqNEhQeDZHdTE4TzUySTcwemxrbkRRdzlkbzN0aHFLRg==
 ```
 
-Edit the file with the pull secret in JSON format and add a section for the mirror registry.  If the port where the mirror registry is listening on is not 443, make sure to add the actual port number after the mirror registry hostname, for example "bastion-sjmzk.sjmzk.dynamic.opentlc.com:8443":
+Edit the file with the pull secret in JSON format and add a section for the mirror registry.  If the port where the mirror registry is listening on is not 443, make sure to add the actual port number after the mirror registry hostname, for example "**bastion-sjmzk.sjmzk.dynamic.opentlc.com:8443**":
 ```
 {
   "auths": {
-	  "cloud.openshift.com": {
+   "cloud.openshift.com": {
     	"auth": "b3BlbnNoaWZ0LXJlbGVhc2...",
     	"email": "myemail@example.com"
-	  },
-	  "quay.io": {
-    	"auth": "b3BlbnNoaWZ0LXJlbGVhc...",
-    	"email": "myemail@example.com"
-	  },
-	  "registry.connect.redhat.com": {
-    	"auth": "NTIzMjU0MDB8dWhjLTFIaW...",
-    	"email": "myemail@example.com"
-	  },
-	  "registry.redhat.io": {
-    	"auth": "NTIzMjU0MDB8dWhjLTFIaWRhWDBvbHZ0Wnl...",
-    	"email": "myemail@example.com"
-	  },
+   },
+   "quay.io": {
+      "auth": "b3BlbnNoaWZ0LXJlbGVhc...",
+      "email": "myemail@example.com"
+   },
+   "registry.connect.redhat.com": {
+      "auth": "NTIzMjU0MDB8dWhjLTFIaW...",
+      "email": "myemail@example.com"
+   },
+   "registry.redhat.io": {
+      "auth": "NTIzMjU0MDB8dWhjLTFIaWRhWDBvbHZ0Wnl...",
+      "email": "myemail@example.com"
+   },
     "bastion-sjmzk.sjmzk.dynamic.opentlc.com": {
       "auth": "aW5pdDpwa1p...EpRTTBsWDRvNQ==",
       "email": "myemail@example.com"
@@ -1109,16 +1118,218 @@ Edit the file with the pull secret in JSON format and add a section for the mirr
   }
 }
 ```
-Verify the JSON formating of the resulting pull secret and install it so that it can be used by the oc CLI.  
+Verify the JSON formating of the pull secret and install it so that it can be used by the oc CLI.
 ```
 <first env>$ jq . pull-secret-json.txt
 <first env>$ mkdir ~/.docker
 <first env>$ cp pull-secret-json.txt ~/.docker/config.json
 ```
 Verify the pull secret and create the image set configuration file template.  This command does not change or add anything to the mirror registry but verifies that the Red Hat public image registry and the local mirror registry are accessible, and creates a configuration template.
+
+The **--registry** parameter uses the DNS name of the registry service, the port where the service listens on if this is different from  443, and a workspace or repository in the registry to hold the registry metadata (mirror/oc-mirror-metadata), the first time this command is executed the repository is created.
+
 The “oc mirror” command can take a couple minutes to complete:
 ```
+$ oc mirror init --registry bastion-vhnwk.vhnwk.dynamic.opentlc.com/mirror/oc-mirror-metadata > imageset-config.yaml
+```
 
+Edit the **imageset-config.yaml** file and include the required content to be mirrored to the local registry.  Examples and further details can be found in the [documentation](https://docs.openshift.com/container-platform/4.15/installing/disconnected_install/installing-mirroring-disconnected.html#oc-mirror-image-set-examples_installing-mirroring-disconnected)
+
+To mirror a particular version of Openshift use a configuration like the following.  This configuration file only mirrors one particular OCP version for multiple architectures, but does not include any operators. This repository contains reference image configuration files at the **mirror/** directory.
+```
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v1alpha2
+storageConfig:
+  registry:
+    imageURL: bastion-vhnwk.vhnwk.dynamic.opentlc.com/mirroroc-mirror-metadata
+    skipTLS: true
+mirror:
+  platform:
+    architectures:
+      - "multi"
+      - "amd64"
+    channels:
+    - name: stable-4.15
+      minVersion: 4.15.0
+      maxVersion: 4.15.0
+      type: ocp
+```
+
+Run the **oc mirror** command to get the container images for the requested OCP versions from the Red Hat public registries and store them in the local mirror registry.
+```
+$ oc mirror --config=./imageset-config.yaml docker://bastion-vhnwk.vhnwk.dynamic.opentlc.com/mirror/oc-mirror-metadata --dest-skip-tls
+Checking push permissions for bastion-vhnwk.vhnwk.dynamic.opentlc.com
+Found: oc-mirror-workspace/src/publish
+Found: oc-mirror-workspace/src/v2
+Found: oc-mirror-workspace/src/charts
+Found: oc-mirror-workspace/src/release-signatures
+No metadata detected, creating new workspace
+...
+info: Mirroring completed in 22m26.98s (49.56MB/s)
+Writing image mapping to oc-mirror-workspace/results-1711562649/mapping.txt
+Writing ICSP manifests to oc-mirror-workspace/results-1711562649
+```
+
+When the mirroring is finished go to the quay web site to verify that the images are there:
+![Quay website with Content](images/image30.png)
+
+
+
+### Mirroring Operators
+
+Additional information about this topic can be found in the knowledge base article [How to use the oc-mirror plug-in to mirror operators](https://access.redhat.com/solutions/6994677)
+To include operator images in the mirror registry we need to collect some additional information.
+
+The commands shown here take a few minutes to execute. Faster alternatives may exist using opm or grpcurl.
+
+Operators are grouped into catalogs, to get the catalog list use the following command:
+```
+$ oc mirror list operators --catalogs --version=4.15
+Available OpenShift OperatorHub catalogs:
+OpenShift 4.15:
+registry.redhat.io/redhat/redhat-operator-index:v4.15
+registry.redhat.io/redhat/certified-operator-index:v4.15
+registry.redhat.io/redhat/community-operator-index:v4.15
+registry.redhat.io/redhat/redhat-marketplace-index:v4.15
+```
+Operators are stored as packages in the catalogs, find the available packages in each catalog and save the results:
+```
+$ oc mirror list operators --catalog=registry.redhat.io/redhat/redhat-operator-index:v4.15 > redhat-catalog-packages-4.15.txt
+$ oc mirror list operators --catalog=registry.redhat.io/redhat/certified-operator-index:v4.15 >certified-catalog-packages-4.15.txt
+$ oc mirror list operators --catalog=registry.redhat.io/redhat/community-operator-index:v4.15 >community-catalog-packages-4.15.txt
+$ oc mirror list operators --catalog=registry.redhat.io/redhat/redhat-marketplace-index:v4.15 >market-catalog-packages-4.15.txt
+```
+Find the operator that you want to install in the saved files, for example RHACM:
+```
+NAME                                          DISPLAY NAME                                             DEFAULT CHANNEL
+3scale-operator                               Red Hat Integration - 3scale                             threescale-2.14
+advanced-cluster-management                   Advanced Cluster Management for Kubernetes               release-2.10
+amq-broker-rhel8                              Red Hat Integration - AMQ Broker for RHEL 8 (Multiarch)  7.11.x
+...
+```
+Each operator can have different channels and several versions per channel.
+
+Find the available channels for the selected operator.  Take note of the **default channel**, because _it must always be included in the image set configuration file_, even if the version that is going to be used is not in that channel.
+
+This command is very slow, if you are requesting information about several operators, it can take a long time to complete.
+```
+$ oc mirror list operators --catalog=registry.redhat.io/redhat/redhat-operator-index:v4.15 --package=advanced-cluster-management
+NAME                         DISPLAY NAME                                DEFAULT CHANNEL
+advanced-cluster-management  Advanced Cluster Management for Kubernetes  release-2.10
+
+PACKAGE                      CHANNEL       HEAD
+advanced-cluster-management  release-2.10  advanced-cluster-management.v2.10.0
+advanced-cluster-management  release-2.9   advanced-cluster-management.v2.9.3
+```
+The command output shows that there are two channels available to install the RHACM operator: release-2.9 and release-2.10.
+
+To find the package versions available within a particular channel use the command:
+```
+$ oc mirror list operators --catalog=registry.redhat.io/redhat/redhat-operator-index:v4.15 --package=advanced-cluster-management --channel=release-2.9
+VERSIONS
+2.9.0
+2.9.1
+2.9.2
+2.9.3
+```
+With the operator name, catalog, channel and versions, add a new section for the operators to the ImageSetConfiguration file.  Add the default channel for all the operators included in the configuration:
+```
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v1alpha2
+storageConfig:
+  registry:
+    imageURL: bastion-vhnwk.vhnwk.dynamic.opentlc.com/mirror/oc-mirror-metadata
+    skipTLS: true
+mirror:
+  platform:
+    architectures:
+      - "multi"
+      - "amd64"
+    channels:
+    - name: stable-4.15
+      minVersion: 4.15.0
+      maxVersion: 4.15.0
+      type: ocp
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.15
+      packages:
+      - name: advanced-cluster-management
+        channels:
+        - name: release-2.9
+          minVersion: '2.9.2'
+          maxVersion: '2.9.3'
+        - name: release-2.10
+          minVersion: '2.10.0'
+          maxVersion: '2.10.0'
+      - name: multicluster-engine
+        channels:
+        - name: stable-2.5
+          minVersion: '2.5.1'
+          maxVersion: '2.5.1'
+```
+In this example the packages are downloaded to the local filesystem (/var/mirror-registry/operator_catalog) instead of uploading them directly to the mirror registry.
+
+The directory is created if it does not exist, but the user running the command needs permissions to create that directory. If not then create the directory manually:
+```
+<first env>$ sudo mkdir /var/mirror-registry/operator-catalog
+<first env>$ sudo chown lab-user: /var/mirror-registry/operator-catalog
+<first env>$ ls -ld /var/mirror-registry/operator-catalog
+drwxr-xr-x. 2 lab-user users 6 Mar 28 06:34 /var/mirror-registry/operator-catalog
+```
+Get the images:
+```
+<first env>$ oc mirror --config=./imageset-config-oper.yaml file:///var/mirror-registry/operator-catalog  --dest-skip-tls
+Creating directory: /var/mirror-registry/operator-catalog/oc-mirror-workspace/src/publish
+Creating directory: /var/mirror-registry/operator-catalog/oc-mirror-workspace/src/v2
+Creating directory: /var/mirror-registry/operator-catalog/oc-mirror-workspace/src/charts
+Creating directory: /var/mirror-registry/operator-catalog/oc-mirror-workspace/src/release-signatures
+No metadata detected, creating new workspace
+...
+info: Mirroring completed in 11m42.86s (143.5MB/s)
+Creating archive /var/mirror-registry/operator-catalog/mirror_seq1_000000.tar
+```
+This command takes quite some time to complete.
+
+One reason it takes so long is because it compares the contents of the mirror registry with the packages to be downloaded so that it only downloads the packages that are not already in the mirror registry.  The command also removes any packages from the mirror registry that are not referenced in the imagesetconfiguration.
+
+The obteined tar file needs to be uploaded to the mirror registry from the first bastion where the public DNS name can be used to access the mirror registry in the second environment, the tar file will not be copied to the second bastion and then loaded from there.
+
+Load the file from the first bastion into the second bastion
+```
+$ oc mirror --from=/var/mirror-registry/operator-catalog/mirror_seq1_000000.tar docker://bastion-vhnwk.vhnwk.dynamic.opentlc.com  --dest-skip-tls
+Checking push permissions for bastion-vhnwk.vhnwk.dynamic.opentlc.com
+Publishing image set from archive "/var/mirror-registry/operator-catalog/mirror_seq1_000000.tar" to registry "bastion-vhnwk.vhnwk.dynamic.opentlc.com"
+bastion-vhnwk.vhnwk.dynamic.opentlc.com/
+  openshift/release
+    manifests:
+      sha256:2c6fd1f4b4fdbfbe34117e0477ad03b95792bb1eafa77f22608c107d7e2b8f19 -> 4.15.0-x86_64-alibaba-cloud-csi-driver
+  stats: shared=0 unique=0 size=0B
+
+phase 0:
+  bastion-vhnwk.vhnwk.dynamic.opentlc.com openshift/release blobs=0 mounts=0 manifests=1 shared=0
+....
+
+```
+When the commands finishes the tar file in the first environment can be deleted to save space.
+```
+
+```
+
+
+
+### Updating the Images
+
+The **oc mirror* command computes the difference between the images already present in the local mirror registry and the images requested in the image set configuration file.  Any images requested but not already present are downloaded and added to the local registry, and any images present in the local registry but not explicitly requested in the image set configuration file are removed from the local registry, therefore the **oc mirror* command can be used both to add new images to the local registry and the delete images that are not needed anymore.
+
+Running the **oc mirror** command a second time without changing the image set configuration results in no images downloaded or deleted:
+```
+$ oc mirror --config=./imageset-config.yaml docker://bastion-vhnwk.vhnwk.dynamic.opentlc.com  --dest-skip-tls
+Checking push permissions for bastion-vhnwk.vhnwk.dynamic.opentlc.com
+Creating directory: oc-mirror-workspace/src/publish
+Creating directory: oc-mirror-workspace/src/v2
+Creating directory: oc-mirror-workspace/src/charts
+Creating directory: oc-mirror-workspace/src/release-signatures
+No new images detected, process stopping
 ```
 
 

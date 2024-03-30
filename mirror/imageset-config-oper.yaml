@@ -2,7 +2,7 @@ kind: ImageSetConfiguration
 apiVersion: mirror.openshift.io/v1alpha2
 storageConfig:
   registry:
-    imageURL: bastion-995pv.995pv.dynamic.opentlc.com:443/mirror/oc-mirror-metadata
+    imageURL: bastion-vhnwk.vhnwk.dynamic.opentlc.com/mirror/oc-mirror-metadata
     skipTLS: true
 mirror:
   platform:
@@ -20,13 +20,13 @@ mirror:
       - name: advanced-cluster-management
         channels:
         - name: release-2.9
-          minVersion: '2.9.1'
-          maxVersion: '2.9.2'
+          minVersion: '2.9.2'
+          maxVersion: '2.9.3'
+        - name: release-2.10
+          minVersion: '2.10.0'
+          maxVersion: '2.10.0'
       - name: multicluster-engine
         channels: 
         - name: stable-2.5
-          minVersion: '2.5.0-103'
-          maxVersion: '2.5.0-103'
-        - name: stable-2.4
-          minVersion: '2.4.3'
-          maxVersion: '2.4.4'
+          minVersion: '2.5.1'
+          maxVersion: '2.5.1'
