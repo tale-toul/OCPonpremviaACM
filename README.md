@@ -44,6 +44,12 @@ Make sure to enable DNS records creation for OCP. when ordering the environment
 It takes about 20 minutes for the environment to be provisioned and ready.
 When the environment is ready, an email is received with information on how to access and use it.
 
+The bastion host automatically created in the environment may not have enough resources to run the clients needed to install Openshift, if that is the case shutdown the bastion and add:
+
+* One additional vCPU, 2 in total
+* Increase the memory to 8GB
+* Add a disk of 250GB.
+
 Ssh into the bastion node and verify the DNS records for the cluster.  The IPs associated with the API and wildcard \*.apps are public, but they are NATed to internal private IPs in the environment, this is specified in the email received from RHDP:
 
 ```
@@ -52,7 +58,12 @@ $ dig +short api.glnm2.dynamic.opentlc.com
 $ dig +short *.apps.glnm2.dynamic.opentlc.com
 34.198.235.139
 ```
-Get the installer, oc client and pull secret from [the Red Hat Console](https://console.redhat.com/openshift/install) and copy them to the bastion host. 
+Get the installer, oc client and pull secret from [the Red Hat Console](https://console.redhat.com/openshift/install) and copy them to the bastion host. You can download the files directly into the bastion host using curl:
+```
+curl -LO https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.14.20/openshift-client-linux-4.14.20.tar.gz
+
+curl -LO https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.14.20/openshift-install-linux.tar.gz
+```
 
 Uncompress the tar files and put them in the running path:
 
@@ -870,7 +881,7 @@ Shutdown the bastion host and add:
 
 Boot up the bastion.
 
-Ssh into the bastion host and show the available disks, a new sdb disk of 250G should appear:
+Ssh into the bastion host and show the available disks, a new 250GB sdb disk should appear in the output:
 ```
 $ lsblk
 NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
@@ -972,7 +983,7 @@ root
 
 <first env>$ ssh -i ~/.ssh/mirror lab-user@bastion-995pv.995pv.dynamic.opentlc.com
 ```
-Download the **mirror-registry.tar.gz**, **mirror-plugin** and the **oc** CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads).
+Download the **mirror-registry.tar.gz**, **oc mirror plugin** and the **oc** CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads).
 ![Download Mirror Registry Installer](images/DownloadMirrorRegistry.png)
 
 Copy the files to the first environment and uncompress the tar file
@@ -1063,13 +1074,21 @@ The uninstall command stops the systemd services, removes the services and delet
 <first env>$ ./mirror-registry uninstall -v --quayRoot /var/mirror-registry/data --targetHostname bastion-vhnwk.vhnwk.dynamic.opentlc.com --targetUsername root -k ~/.ssh/mirror-root
 ```
 
-If you don't want to remove the mirrored images, just leave out the quayRoot directory and answer **no** to the question: "Are you sure want to delete quayRoot directory ~/quay-install and all storage data? [y/n]"
+If you don't want to remove the mirrored images, just leave out the quayRoot directory and answer **no** to the question: "**Are you sure want to delete quayRoot directory ~/quay-install and all storage data? [y/n]**"
 
 ### Mirroring Images
 
-Download the mirror-plugin and the oc CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads).
+The [oc mirror plugin](https://github.com/openshift/oc-mirror) is used to mirror the images from the public Red Hat registries to the local mirror registry.  
 
-Install the oc CLI and the oc-mirror plugin in the first environment:
+The bastion host may not have enough resources to run the oc mirror commands, if that is the case shutdown the bastion and add:
+
+* One additional vCPU, 2 in total
+* Increase the memory to 8GB
+* Add a disk of 250GB.
+
+Download the oc mirror plugin and the oc CLI packages from the [Red Hat Hybrid Cloud Console Downloads page](https://console.redhat.com/openshift/downloads).
+
+Install the oc CLI and the oc mirror plugin in the first environment:
 ```
 <first env>$ tar xvf oc-mirror.tar.gz 
 oc-mirror
@@ -1169,10 +1188,27 @@ info: Mirroring completed in 22m26.98s (49.56MB/s)
 Writing image mapping to oc-mirror-workspace/results-1711562649/mapping.txt
 Writing ICSP manifests to oc-mirror-workspace/results-1711562649
 ```
+The mirroring command creates the directory **oc-mirror-workspace** in the same host where the command is being run, in the subdirectory **results-xxxx** can be found an imageContentSourcePolicy yaml definition that can be applied to an existing cluster or whose contents can be used to install a new cluster.  The image content source policy defines a mapping between the original source of the container images and the actual place to fetch them from.
 
-When the mirroring is finished go to the quay web site to verify that the images are there:
+```
+$ cat oc-mirror-workspace/results-1711798302/imageContentSourcePolicy.yaml 
+---
+apiVersion: operator.openshift.io/v1alpha1
+kind: ImageContentSourcePolicy
+metadata:
+  name: release-0
+spec:
+  repositoryDigestMirrors:
+  - mirrors:
+    - bastion-gwsmk.gwsmk.dynamic.opentlc.com/mirror/oc-mirror-metadata/openshift/release
+    source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+  - mirrors:
+    - bastion-gwsmk.gwsmk.dynamic.opentlc.com/mirror/oc-mirror-metadata/openshift/release-images
+    source: quay.io/openshift-release-dev/ocp-release
+```
+
+Go to the quay web site to verify that the images are there:
 ![Quay website with Content](images/image30.png)
-
 
 
 ### Mirroring Operators
@@ -1268,6 +1304,8 @@ mirror:
           maxVersion: '2.5.1'
 ```
 In this example the packages are downloaded to the local filesystem (/var/mirror-registry/operator_catalog) instead of uploading them directly to the mirror registry.
+
+Make sure that the local directory has enough space to hold all the images downloaded from the public Red Hat registries.
 
 The directory is created if it does not exist, but the user running the command needs permissions to create that directory. If not then create the directory manually:
 ```
